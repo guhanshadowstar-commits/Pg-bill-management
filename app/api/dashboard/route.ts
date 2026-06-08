@@ -5,12 +5,17 @@ import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 export async function GET() {
   const monthStart = startOfMonth(new Date()).toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
   const supabase = getSupabaseAdmin();
 
   if (supabase) {
-    const [roomsRes, tenantsRes, pendingRes, revenueRes, recentBillsRes] = await Promise.all([
+    const [roomsRes, activeOccupancyRes, pendingRes, revenueRes, recentBillsRes] = await Promise.all([
       supabase.from("rooms").select("id", { count: "exact", head: true }),
-      supabase.from("tenants").select("id", { count: "exact", head: true }),
+      supabase
+        .from("occupancy_logs")
+        .select("tenant_id", { count: "exact", head: false })
+        .lte("check_in", today)
+        .or(`check_out.is.null,check_out.gte.${today}`),
       supabase.from("bill_splits").select("id", { count: "exact", head: true }).neq("status", "paid"),
       supabase.from("payments").select("paid_amount").gte("payment_date", monthStart),
       supabase
@@ -24,7 +29,7 @@ export async function GET() {
 
     return NextResponse.json({
       total_rooms: roomsRes.count || 0,
-      active_tenants: tenantsRes.count || 0,
+      active_tenants: new Set((activeOccupancyRes.data || []).map((row: any) => row.tenant_id)).size,
       pending_payments: pendingRes.count || 0,
       monthly_revenue: Number(monthlyRevenue.toFixed(2)),
       recent_bills: recentBillsRes.data || []
@@ -48,7 +53,11 @@ export async function GET() {
 
   return NextResponse.json({
     total_rooms: db.rooms.length,
-    active_tenants: db.tenants.length,
+    active_tenants: new Set(
+      db.occupancy_logs
+        .filter((row) => row.check_in <= today && (!row.check_out || row.check_out >= today))
+        .map((row) => row.tenant_id)
+    ).size,
     pending_payments: db.bill_splits.filter((s) => s.status !== "paid").length,
     monthly_revenue: Number(monthlyRevenue.toFixed(2)),
     recent_bills: recentBills

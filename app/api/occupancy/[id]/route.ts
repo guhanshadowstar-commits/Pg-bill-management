@@ -2,8 +2,67 @@ import { NextResponse } from "next/server";
 import { readDb, writeDb } from "@/lib/db";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
-export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
+function isDateOnly(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const body = await req.json();
+  const check_out = body.check_out ? String(body.check_out).trim() : null;
+
+  if (check_out && !isDateOnly(check_out)) {
+    return NextResponse.json({ error: "check_out must be YYYY-MM-DD" }, { status: 400 });
+  }
+
+  const supabase = getSupabaseAdmin();
+
+  if (supabase) {
+    const { data: existing, error: existingError } = await supabase
+      .from("occupancy_logs")
+      .select("id, check_in")
+      .eq("id", id)
+      .single();
+
+    if (existingError || !existing) return NextResponse.json({ error: "Occupancy log not found" }, { status: 404 });
+    if (check_out && check_out < existing.check_in) {
+      return NextResponse.json({ error: "check_out cannot be before check_in" }, { status: 400 });
+    }
+
+    const { data, error } = await supabase
+      .from("occupancy_logs")
+      .update({ check_out })
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json(data);
+  }
+
+  const db = await readDb();
+  const row = db.occupancy_logs.find((o) => o.id === id);
+  if (!row) return NextResponse.json({ error: "Occupancy log not found" }, { status: 404 });
+  if (check_out && check_out < row.check_in) {
+    return NextResponse.json({ error: "check_out cannot be before check_in" }, { status: 400 });
+  }
+
+  row.check_out = check_out;
+  await writeDb(db);
+  return NextResponse.json(row);
+}
+
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const force = new URL(req.url).searchParams.get("force") === "true";
+
+  if (!force) {
+    return NextResponse.json(
+      { error: "History is preserved. Set a check-out date instead of deleting this occupancy log." },
+      { status: 405 }
+    );
+  }
+
   const supabase = getSupabaseAdmin();
 
   if (supabase) {

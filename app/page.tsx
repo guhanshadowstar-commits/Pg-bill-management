@@ -65,8 +65,8 @@ export default function DashboardPage() {
           <h2 className="mb-3 text-lg font-semibold">How It Calculates</h2>
           <p className="text-sm text-mist">Individual Bill = (Days Stayed / Total Person-Days) × Total Electricity Bill</p>
           <div className="mt-4 rounded-xl border border-black/10 p-3 text-sm dark:border-white/10">
-            <p>Example: Bill ₹4000, Person-Days 85</p>
-            <p>Per Person-Day = ₹47.0588</p>
+            <p>Enter the real monthly EB bill and the app counts each tenant's actual stay days.</p>
+            <p>Empty beds are not charged because only occupied person-days are counted.</p>
           </div>
         </Card>
       </section>

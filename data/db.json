@@ -1,19 +1,7 @@
 {
-  "rooms": [
-    { "id": "room_204", "room_number": "204", "sharing_type": 4, "meter_number": "MTR-204", "status": "active", "created_at": "2026-05-01T00:00:00.000Z" }
-  ],
-  "tenants": [
-    { "id": "t_arun", "full_name": "Arun", "phone": "9990001111", "payment_status": "pending", "created_at": "2026-05-01T00:00:00.000Z" },
-    { "id": "t_ravi", "full_name": "Ravi", "phone": "9990002222", "payment_status": "pending", "created_at": "2026-05-01T00:00:00.000Z" },
-    { "id": "t_kiran", "full_name": "Kiran", "phone": "9990003333", "payment_status": "pending", "created_at": "2026-05-01T00:00:00.000Z" },
-    { "id": "t_ajay", "full_name": "Ajay", "phone": "9990004444", "payment_status": "pending", "created_at": "2026-05-01T00:00:00.000Z" }
-  ],
-  "occupancy_logs": [
-    { "id": "o1", "room_id": "room_204", "tenant_id": "t_arun", "check_in": "2026-05-01", "check_out": "2026-05-30", "created_at": "2026-05-01T00:00:00.000Z" },
-    { "id": "o2", "room_id": "room_204", "tenant_id": "t_ravi", "check_in": "2026-05-01", "check_out": "2026-05-30", "created_at": "2026-05-01T00:00:00.000Z" },
-    { "id": "o3", "room_id": "room_204", "tenant_id": "t_kiran", "check_in": "2026-05-01", "check_out": "2026-05-15", "created_at": "2026-05-01T00:00:00.000Z" },
-    { "id": "o4", "room_id": "room_204", "tenant_id": "t_ajay", "check_in": "2026-05-01", "check_out": "2026-05-10", "created_at": "2026-05-01T00:00:00.000Z" }
-  ],
+  "rooms": [],
+  "tenants": [],
+  "occupancy_logs": [],
   "electricity_bills": [],
   "bill_splits": [],
   "payments": []

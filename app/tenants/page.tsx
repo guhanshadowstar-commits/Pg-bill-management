@@ -64,8 +64,17 @@ export default function TenantsPage() {
     await load();
   }
 
-  async function del(id: string) {
-    await fetch(`/api/occupancy/${id}`, { method: "DELETE" });
+  async function checkout(id: string, currentCheckOut: string | null) {
+    const fallback = currentCheckOut || new Date().toISOString().slice(0, 10);
+    const checkOut = window.prompt("Enter checkout date (YYYY-MM-DD). Leave blank to make active again.", fallback);
+    if (checkOut === null) return;
+
+    const cleaned = checkOut.trim();
+    await fetch(`/api/occupancy/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ check_out: cleaned || null })
+    });
     await load();
   }
 
@@ -105,7 +114,7 @@ export default function TenantsPage() {
           <table className="min-w-full text-left text-sm">
             <thead>
               <tr className="border-b border-black/10 text-mist dark:border-white/10">
-                <th className="py-2">Tenant</th><th>Room</th><th>Check-in</th><th>Check-out</th><th>Action</th>
+                <th className="py-2">Tenant</th><th>Room</th><th>Check-in</th><th>Check-out</th><th>Status</th><th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -115,7 +124,16 @@ export default function TenantsPage() {
                   <td>{o.rooms.room_number}</td>
                   <td>{o.check_in}</td>
                   <td>{o.check_out || "Active"}</td>
-                  <td><button onClick={() => del(o.id)} className="rounded-lg border border-black/10 px-2 py-1 text-xs dark:border-white/20">Delete</button></td>
+                  <td>
+                    <span className={o.check_out ? "rounded-full bg-black/5 px-2 py-1 text-xs text-mist dark:bg-white/10" : "rounded-full bg-emerald-500/10 px-2 py-1 text-xs text-emerald-600 dark:text-emerald-300"}>
+                      {o.check_out ? "Checked out" : "Active"}
+                    </span>
+                  </td>
+                  <td>
+                    <button onClick={() => checkout(o.id, o.check_out)} className="rounded-lg border border-black/10 px-2 py-1 text-xs dark:border-white/20">
+                      {o.check_out ? "Edit checkout" : "Check out"}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

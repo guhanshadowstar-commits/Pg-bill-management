@@ -31,6 +31,14 @@ Professional PG electricity split manager with AI-assisted occupancy parsing and
 5. Build hygiene improvements:
 - Updated Next.js tracing config in `next.config.mjs`
 
+6. Added history-safe tenant flow:
+- Normal tenant exit now updates `check_out` instead of deleting the occupancy row.
+- New `/history` page shows incomers, outgoers, active stays, and checked-out stays for the last 3 years.
+
+7. Added AI help assistant:
+- New `/ai` page answers app usage doubts: bill calculation, tenant entry, checkout, payments, and database mode.
+- Uses `OPENAI_API_KEY` if available, otherwise a built-in help fallback works locally.
+
 ## Run Locally
 ```bash
 npm install
@@ -60,16 +68,19 @@ In your Vercel project settings, add:
 ## Important Notes
 - For real production, use Supabase mode (do not rely on `data/db.json` persistence on serverless).
 - AI parser works even without OpenAI key using local fallback parsing.
+- No demo tenant/room data is preloaded. The app starts empty and stores only the data you enter.
 
 ## API Modules
 - `/api/rooms`
 - `/api/tenants`
 - `/api/occupancy`
+- `/api/history`
 - `/api/bills`
 - `/api/bills/calculate`
 - `/api/payments`
 - `/api/dashboard`
 - `/api/ai/parse`
+- `/api/ai/help`
 - `/api/notifications/pending-bills`
 
 ## n8n

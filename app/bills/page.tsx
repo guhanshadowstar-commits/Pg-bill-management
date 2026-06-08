@@ -22,11 +22,13 @@ type Bill = {
 };
 
 export default function BillsPage() {
-  const [form, setForm] = useState({ roomNumber: "204", month: "2026-05-01", totalBill: 4000 });
-  const [aiText, setAiText] = useState("Room 204 bill is 3200. Arun stayed full month. Rahul left on 12th. Kiran joined on 18th.");
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const [form, setForm] = useState({ roomNumber: "", month: `${currentMonth}-01`, totalBill: "" });
+  const [aiText, setAiText] = useState("");
   const [calc, setCalc] = useState<CalcResult | null>(null);
   const [bills, setBills] = useState<Bill[]>([]);
   const [aiResult, setAiResult] = useState<string>("");
+  const canSubmitBill = form.roomNumber.trim().length > 0 && Number(form.totalBill) > 0;
 
   async function loadBills() {
     const data = await fetch("/api/bills").then((r) => r.json());
@@ -41,7 +43,7 @@ export default function BillsPage() {
     const data = await fetch("/api/bills/calculate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form)
+      body: JSON.stringify({ ...form, totalBill: Number(form.totalBill) })
     }).then((r) => r.json());
     setCalc(data);
   }
@@ -50,7 +52,7 @@ export default function BillsPage() {
     const data = await fetch("/api/bills", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form)
+      body: JSON.stringify({ ...form, totalBill: Number(form.totalBill) })
     }).then((r) => r.json());
     setCalc(data);
     await loadBills();
@@ -83,10 +85,10 @@ export default function BillsPage() {
           <div className="mt-3 space-y-3">
             <Input value={form.roomNumber} onChange={(e) => setForm((p) => ({ ...p, roomNumber: e.target.value }))} placeholder="Room Number" />
             <Input type="month" value={form.month.slice(0, 7)} onChange={(e) => setForm((p) => ({ ...p, month: `${e.target.value}-01` }))} />
-            <Input type="number" value={form.totalBill} onChange={(e) => setForm((p) => ({ ...p, totalBill: Number(e.target.value) }))} placeholder="Total Bill" />
+            <Input type="number" value={form.totalBill} onChange={(e) => setForm((p) => ({ ...p, totalBill: e.target.value }))} placeholder="Total Bill" />
             <div className="flex gap-2">
-              <Button onClick={calculate}>Calculate</Button>
-              <Button onClick={saveBill} className="bg-ink text-pearl dark:bg-gold dark:text-ink">Save Bill</Button>
+              <Button onClick={calculate} disabled={!canSubmitBill}>Calculate</Button>
+              <Button onClick={saveBill} disabled={!canSubmitBill} className="bg-ink text-pearl dark:bg-gold dark:text-ink">Save Bill</Button>
             </div>
           </div>
         </Card>
@@ -97,9 +99,10 @@ export default function BillsPage() {
             className="mt-3 h-40 w-full rounded-xl border border-black/10 bg-white p-3 text-sm outline-none dark:border-white/15 dark:bg-black/20"
             value={aiText}
             onChange={(e) => setAiText(e.target.value)}
+            placeholder="Describe occupancy in natural language after entering your real room and tenant details."
           />
           <div className="mt-3 flex gap-2">
-            <Button onClick={parseAi}>Parse</Button>
+            <Button onClick={parseAi} disabled={!aiText.trim()}>Parse</Button>
           </div>
           {aiResult && <pre className="mt-3 overflow-auto rounded-xl border border-black/10 p-3 text-xs dark:border-white/15">{aiResult}</pre>}
         </Card>

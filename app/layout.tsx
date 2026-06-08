@@ -14,7 +14,9 @@ const nav = [
   { href: "/", label: "Dashboard" },
   { href: "/rooms", label: "Rooms" },
   { href: "/tenants", label: "Tenants" },
-  { href: "/bills", label: "Bills" }
+  { href: "/bills", label: "Bills" },
+  { href: "/history", label: "History" },
+  { href: "/ai", label: "AI Help" }
 ] as const satisfies ReadonlyArray<{ href: Route; label: string }>;
 
 export default function RootLayout({ children }: { children: ReactNode }) {

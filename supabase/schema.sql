@@ -57,3 +57,11 @@ create table if not exists public.payments (
   txn_ref text,
   created_at timestamptz not null default now()
 );
+
+create index if not exists idx_occupancy_logs_room_id on public.occupancy_logs(room_id);
+create index if not exists idx_occupancy_logs_tenant_id on public.occupancy_logs(tenant_id);
+create index if not exists idx_occupancy_logs_check_in on public.occupancy_logs(check_in);
+create index if not exists idx_occupancy_logs_check_out on public.occupancy_logs(check_out);
+create index if not exists idx_electricity_bills_bill_month on public.electricity_bills(bill_month);
+create index if not exists idx_bill_splits_bill_id on public.bill_splits(bill_id);
+create index if not exists idx_payments_bill_split_id on public.payments(bill_split_id);
