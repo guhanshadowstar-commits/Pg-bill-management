@@ -10,6 +10,7 @@ async function ensureDb() {
     await fs.access(dbPath);
   } catch {
     const initial: DBShape = {
+      owner_accounts: [],
       rooms: [],
       tenants: [],
       occupancy_logs: [],
@@ -25,7 +26,17 @@ async function ensureDb() {
 export async function readDb(): Promise<DBShape> {
   await ensureDb();
   const raw = await fs.readFile(dbPath, "utf8");
-  return JSON.parse(raw) as DBShape;
+  const parsed = JSON.parse(raw) as Partial<DBShape>;
+
+  return {
+    owner_accounts: parsed.owner_accounts || [],
+    rooms: parsed.rooms || [],
+    tenants: parsed.tenants || [],
+    occupancy_logs: parsed.occupancy_logs || [],
+    electricity_bills: parsed.electricity_bills || [],
+    bill_splits: parsed.bill_splits || [],
+    payments: parsed.payments || []
+  };
 }
 
 export async function writeDb(next: DBShape): Promise<void> {

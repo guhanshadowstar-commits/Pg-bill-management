@@ -4,6 +4,7 @@ import type { Route } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { LogoutButton } from "@/components/auth/logout-button";
 
 export const metadata: Metadata = {
   title: "PG EB Manager",
@@ -16,7 +17,8 @@ const nav = [
   { href: "/tenants", label: "Tenants" },
   { href: "/bills", label: "Bills" },
   { href: "/history", label: "History" },
-  { href: "/ai", label: "AI Help" }
+  { href: "/ai", label: "AI Help" },
+  { href: "/manual", label: "Manual" }
 ] as const satisfies ReadonlyArray<{ href: Route; label: string }>;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -39,6 +41,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                   ))}
                 </nav>
                 <ThemeToggle />
+                <LogoutButton />
               </div>
             </div>
           </header>

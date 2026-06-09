@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { readDb, writeDb } from "@/lib/db";
+import { belongsToOwner, requireOwner } from "@/lib/owner-scope";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 function isDateOnly(value: string) {
@@ -7,6 +8,9 @@ function isDateOnly(value: string) {
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await requireOwner(req);
+  if (session.error) return session.error;
+
   const { id } = await params;
   const body = await req.json();
   const check_out = body.check_out ? String(body.check_out).trim() : null;
@@ -22,6 +26,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       .from("occupancy_logs")
       .select("id, check_in")
       .eq("id", id)
+      .eq("owner_id", session.owner.owner_id)
       .single();
 
     if (existingError || !existing) return NextResponse.json({ error: "Occupancy log not found" }, { status: 404 });
@@ -33,6 +38,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       .from("occupancy_logs")
       .update({ check_out })
       .eq("id", id)
+      .eq("owner_id", session.owner.owner_id)
       .select("*")
       .single();
 
@@ -41,7 +47,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   const db = await readDb();
-  const row = db.occupancy_logs.find((o) => o.id === id);
+  const row = db.occupancy_logs.find((o) => o.id === id && belongsToOwner(o, session.owner.owner_id));
   if (!row) return NextResponse.json({ error: "Occupancy log not found" }, { status: 404 });
   if (check_out && check_out < row.check_in) {
     return NextResponse.json({ error: "check_out cannot be before check_in" }, { status: 400 });
@@ -53,6 +59,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await requireOwner(req);
+  if (session.error) return session.error;
+
   const { id } = await params;
   const force = new URL(req.url).searchParams.get("force") === "true";
 
@@ -66,13 +75,13 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   const supabase = getSupabaseAdmin();
 
   if (supabase) {
-    const { error } = await supabase.from("occupancy_logs").delete().eq("id", id);
+    const { error } = await supabase.from("occupancy_logs").delete().eq("id", id).eq("owner_id", session.owner.owner_id);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ ok: true });
   }
 
   const db = await readDb();
-  db.occupancy_logs = db.occupancy_logs.filter((o) => o.id !== id);
+  db.occupancy_logs = db.occupancy_logs.filter((o) => o.id !== id || !belongsToOwner(o, session.owner.owner_id));
   await writeDb(db);
   return NextResponse.json({ ok: true });
 }

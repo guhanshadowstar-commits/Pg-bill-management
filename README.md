@@ -39,6 +39,15 @@ Professional PG electricity split manager with AI-assisted occupancy parsing and
 - New `/ai` page answers app usage doubts: bill calculation, tenant entry, checkout, payments, and database mode.
 - Uses `OPENAI_API_KEY` if available, otherwise a built-in help fallback works locally.
 
+8. Added embedded user manual:
+- New `/manual` page explains every major action inside the app.
+
+9. Added PG owner login and signup:
+- Owner-only login protects pages and API routes.
+- Owners can create accounts directly from the app login screen.
+- `PG_OWNER_ACCOUNTS` is optional and kept only as an emergency fallback.
+- Each logged-in owner has isolated rooms, tenants, occupancy logs, bills, bill splits, payments, dashboard totals, history, and pending reminders.
+
 ## Run Locally
 ```bash
 npm install
@@ -52,11 +61,17 @@ Open `http://localhost:3000`
 - In Supabase SQL Editor, run:
   - `supabase/schema.sql`
   - `supabase/seed.sql`
+- If you entered real data before owner isolation and want that old data under a specific login username, edit and run:
+  - `supabase/transfer-existing-data-to-owner.sql`
 
 ### 2) Set Vercel Environment Variables
 In your Vercel project settings, add:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `OWNER_SESSION_SECRET` (recommended random long secret)
+- `PG_OWNER_ACCOUNTS` (optional emergency fallback, example: `admin=StrongPassword1`; avoid commas inside passwords)
+- `PG_OWNER_USERNAME` (optional one-owner emergency fallback)
+- `PG_OWNER_PASSWORD` (optional one-owner emergency fallback)
 - `OPENAI_API_KEY` (optional)
 - `OPENAI_MODEL` (optional, default `gpt-4.1-mini`)
 
@@ -69,6 +84,9 @@ In your Vercel project settings, add:
 - For real production, use Supabase mode (do not rely on `data/db.json` persistence on serverless).
 - AI parser works even without OpenAI key using local fallback parsing.
 - No demo tenant/room data is preloaded. The app starts empty and stores only the data you enter.
+- Owners should normally create accounts from the app login screen. Each owner account sees only its own PG data.
+- There are no manager/staff roles yet because every login is treated as the owner of that account.
+- Existing old rows created before owner isolation are assigned to owner_id `owner` by default. Create your owner account first, then edit and run the transfer SQL helper if you need old rows moved into that account.
 
 ## API Modules
 - `/api/rooms`

@@ -1,5 +1,14 @@
+export type OwnerAccount = {
+  id: string;
+  username: string;
+  email: string | null;
+  password_hash: string;
+  created_at: string;
+};
+
 export type Room = {
   id: string;
+  owner_id: string;
   room_number: string;
   sharing_type: number;
   meter_number: string | null;
@@ -9,6 +18,7 @@ export type Room = {
 
 export type Tenant = {
   id: string;
+  owner_id: string;
   full_name: string;
   phone: string | null;
   payment_status: "pending" | "paid" | "partial";
@@ -17,6 +27,7 @@ export type Tenant = {
 
 export type OccupancyLog = {
   id: string;
+  owner_id: string;
   room_id: string;
   tenant_id: string;
   check_in: string;
@@ -26,6 +37,7 @@ export type OccupancyLog = {
 
 export type ElectricityBill = {
   id: string;
+  owner_id: string;
   room_id: string;
   bill_month: string;
   total_amount: number;
@@ -36,6 +48,7 @@ export type ElectricityBill = {
 
 export type BillSplit = {
   id: string;
+  owner_id: string;
   bill_id: string;
   tenant_id: string;
   days_stayed: number;
@@ -46,6 +59,7 @@ export type BillSplit = {
 
 export type Payment = {
   id: string;
+  owner_id: string;
   bill_split_id: string;
   paid_amount: number;
   payment_date: string;
@@ -56,6 +70,7 @@ export type Payment = {
 };
 
 export type DBShape = {
+  owner_accounts: OwnerAccount[];
   rooms: Room[];
   tenants: Tenant[];
   occupancy_logs: OccupancyLog[];

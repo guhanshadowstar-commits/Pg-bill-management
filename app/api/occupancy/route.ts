@@ -1,15 +1,20 @@
 import { NextResponse } from "next/server";
 import { readDb, writeDb } from "@/lib/db";
+import { belongsToOwner, requireOwner } from "@/lib/owner-scope";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { uid } from "@/lib/utils";
 
-export async function GET() {
+export async function GET(req: Request) {
+  const session = await requireOwner(req);
+  if (session.error) return session.error;
+
   const supabase = getSupabaseAdmin();
 
   if (supabase) {
     const { data, error } = await supabase
       .from("occupancy_logs")
       .select("id, room_id, tenant_id, check_in, check_out, created_at, rooms(room_number), tenants(full_name)")
+      .eq("owner_id", session.owner.owner_id)
       .order("check_in", { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -18,10 +23,11 @@ export async function GET() {
 
   const db = await readDb();
   const rows = db.occupancy_logs
+    .filter((row) => belongsToOwner(row, session.owner.owner_id))
     .map((o) => ({
       ...o,
-      rooms: { room_number: db.rooms.find((r) => r.id === o.room_id)?.room_number || "-" },
-      tenants: { full_name: db.tenants.find((t) => t.id === o.tenant_id)?.full_name || "-" }
+      rooms: { room_number: db.rooms.find((r) => r.id === o.room_id && belongsToOwner(r, session.owner.owner_id))?.room_number || "-" },
+      tenants: { full_name: db.tenants.find((t) => t.id === o.tenant_id && belongsToOwner(t, session.owner.owner_id))?.full_name || "-" }
     }))
     .sort((a, b) => b.check_in.localeCompare(a.check_in));
 
@@ -29,6 +35,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const session = await requireOwner(req);
+  if (session.error) return session.error;
+
   const body = await req.json();
   const room_id = String(body.room_id || "").trim();
   const tenant_id = String(body.tenant_id || "").trim();
@@ -41,9 +50,18 @@ export async function POST(req: Request) {
 
   const supabase = getSupabaseAdmin();
   if (supabase) {
+    const [{ data: room }, { data: tenant }] = await Promise.all([
+      supabase.from("rooms").select("id").eq("id", room_id).eq("owner_id", session.owner.owner_id).single(),
+      supabase.from("tenants").select("id").eq("id", tenant_id).eq("owner_id", session.owner.owner_id).single()
+    ]);
+
+    if (!room || !tenant) {
+      return NextResponse.json({ error: "Room or tenant not found for this owner" }, { status: 404 });
+    }
+
     const { data, error } = await supabase
       .from("occupancy_logs")
-      .insert({ room_id, tenant_id, check_in, check_out })
+      .insert({ owner_id: session.owner.owner_id, room_id, tenant_id, check_in, check_out })
       .select("*")
       .single();
 
@@ -52,8 +70,16 @@ export async function POST(req: Request) {
   }
 
   const db = await readDb();
+  const room = db.rooms.find((row) => row.id === room_id && belongsToOwner(row, session.owner.owner_id));
+  const tenant = db.tenants.find((row) => row.id === tenant_id && belongsToOwner(row, session.owner.owner_id));
+
+  if (!room || !tenant) {
+    return NextResponse.json({ error: "Room or tenant not found for this owner" }, { status: 404 });
+  }
+
   const row = {
     id: uid("occ"),
+    owner_id: session.owner.owner_id,
     room_id,
     tenant_id,
     check_in,

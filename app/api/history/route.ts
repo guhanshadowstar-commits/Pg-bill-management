@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { readDb } from "@/lib/db";
+import { belongsToOwner, requireOwner } from "@/lib/owner-scope";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 function isoDate(date: Date) {
@@ -12,7 +13,10 @@ function daysInclusive(start: string, end: string | null) {
   return Math.max(0, Math.floor((to.getTime() - from.getTime()) / 86400000) + 1);
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const session = await requireOwner(req);
+  if (session.error) return session.error;
+
   const today = isoDate(new Date());
   const fromDate = new Date();
   fromDate.setFullYear(fromDate.getFullYear() - 3);
@@ -24,6 +28,7 @@ export async function GET() {
     const { data, error } = await supabase
       .from("occupancy_logs")
       .select("id, room_id, tenant_id, check_in, check_out, created_at, rooms(room_number), tenants(full_name, phone)")
+      .eq("owner_id", session.owner.owner_id)
       .lte("check_in", today)
       .or(`check_out.is.null,check_out.gte.${from}`)
       .order("check_in", { ascending: false });
@@ -47,15 +52,15 @@ export async function GET() {
 
   const db = await readDb();
   const rows = db.occupancy_logs
-    .filter((row) => row.check_in <= today && (!row.check_out || row.check_out >= from))
+    .filter((row) => belongsToOwner(row, session.owner.owner_id) && row.check_in <= today && (!row.check_out || row.check_out >= from))
     .sort((a, b) => b.check_in.localeCompare(a.check_in))
     .map((row) => ({
       ...row,
       days_stayed: daysInclusive(row.check_in, row.check_out),
-      rooms: { room_number: db.rooms.find((room) => room.id === row.room_id)?.room_number || "-" },
+      rooms: { room_number: db.rooms.find((room) => room.id === row.room_id && belongsToOwner(room, session.owner.owner_id))?.room_number || "-" },
       tenants: {
-        full_name: db.tenants.find((tenant) => tenant.id === row.tenant_id)?.full_name || "-",
-        phone: db.tenants.find((tenant) => tenant.id === row.tenant_id)?.phone || null
+        full_name: db.tenants.find((tenant) => tenant.id === row.tenant_id && belongsToOwner(tenant, session.owner.owner_id))?.full_name || "-",
+        phone: db.tenants.find((tenant) => tenant.id === row.tenant_id && belongsToOwner(tenant, session.owner.owner_id))?.phone || null
       }
     }));
 
