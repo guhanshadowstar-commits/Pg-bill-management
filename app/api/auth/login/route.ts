@@ -11,6 +11,19 @@ import {
 import { readDb } from "@/lib/db";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
+function ownerAuthEmail(username: string) {
+  return `${username}@pg-bill-owner.app`;
+}
+
+function isMissingOwnerAccountsTable(error?: { message?: string; code?: string } | null) {
+  return Boolean(
+    error &&
+      (error.code === "PGRST205" ||
+        error.message?.includes("owner_accounts") ||
+        error.message?.includes("schema cache"))
+  );
+}
+
 export async function POST(req: Request) {
   const body = await req.json();
   const username = normalizeUsername(String(body.username || ""));
@@ -30,6 +43,18 @@ export async function POST(req: Request) {
 
     if (owner && !error && await verifyOwnerPassword(password, owner.password_hash)) {
       return createLoginResponse(owner.username, owner.id);
+    }
+
+    if (isMissingOwnerAccountsTable(error)) {
+      const { data: authLogin } = await supabase.auth.signInWithPassword({
+        email: ownerAuthEmail(username),
+        password
+      });
+
+      if (authLogin.user) {
+        const authUsername = String(authLogin.user.user_metadata?.username || username);
+        return createLoginResponse(authUsername, authLogin.user.id);
+      }
     }
   } else {
     const db = await readDb();

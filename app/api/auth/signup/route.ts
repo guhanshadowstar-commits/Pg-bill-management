@@ -14,6 +14,19 @@ function isValidUsername(username: string) {
   return /^[a-z0-9._-]{3,40}$/.test(username);
 }
 
+function ownerAuthEmail(username: string) {
+  return `${username}@pg-bill-owner.app`;
+}
+
+function isMissingOwnerAccountsTable(error?: { message?: string; code?: string } | null) {
+  return Boolean(
+    error &&
+      (error.code === "PGRST205" ||
+        error.message?.includes("owner_accounts") ||
+        error.message?.includes("schema cache"))
+  );
+}
+
 export async function POST(req: Request) {
   const body = await req.json();
   const username = normalizeUsername(String(body.username || ""));
@@ -35,20 +48,47 @@ export async function POST(req: Request) {
   const supabase = getSupabaseAdmin();
 
   if (supabase) {
-    const { data: existing } = await supabase.from("owner_accounts").select("id").eq("username", username).maybeSingle();
-    if (existing) return NextResponse.json({ error: "This username is already taken." }, { status: 409 });
-
-    const { data: owner, error } = await supabase
+    const { data: existing, error: lookupError } = await supabase
       .from("owner_accounts")
-      .insert({ username, email, password_hash: passwordHash })
-      .select("id, username")
-      .single();
+      .select("id")
+      .eq("username", username)
+      .maybeSingle();
 
-    if (error || !owner) {
-      return NextResponse.json({ error: error?.message || "Unable to create owner account." }, { status: 400 });
+    if (!isMissingOwnerAccountsTable(lookupError)) {
+      if (existing) return NextResponse.json({ error: "This username is already taken." }, { status: 409 });
+
+      const { data: owner, error } = await supabase
+        .from("owner_accounts")
+        .insert({ username, email, password_hash: passwordHash })
+        .select("id, username")
+        .single();
+
+      if (!error && owner) {
+        return createSignupResponse(owner.username, owner.id);
+      }
+
+      if (!isMissingOwnerAccountsTable(error)) {
+        return NextResponse.json({ error: error?.message || "Unable to create owner account." }, { status: 400 });
+      }
     }
 
-    return createSignupResponse(owner.username, owner.id);
+    // Fallback for projects that have Supabase Auth enabled but have not run the optional owner_accounts table migration.
+    const { data: authOwner, error: authError } = await supabase.auth.admin.createUser({
+      email: ownerAuthEmail(username),
+      password,
+      email_confirm: true,
+      user_metadata: { username, email }
+    });
+
+    if (authError || !authOwner.user) {
+      const alreadyExists = authError?.message.toLowerCase().includes("already");
+      return NextResponse.json(
+        { error: alreadyExists ? "This username is already taken. Try logging in." : authError?.message || "Unable to create owner account." },
+        { status: alreadyExists ? 409 : 400 }
+      );
+    }
+
+    return createSignupResponse(username, authOwner.user.id);
   }
 
   const db = await readDb();

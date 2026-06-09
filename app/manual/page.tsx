@@ -231,7 +231,8 @@ const guideSections = [
       "Vercel PG_OWNER_ACCOUNTS is only an optional emergency fallback.",
       "Each owner account sees only its own rooms, tenants, bills, payments, and history.",
       "There are no manager or staff roles yet; every login is treated as the owner of that account.",
-      "To remove an owner later, delete that owner account from the owner_accounts table."
+      "Normal owner accounts are created from the app login screen and stored by Supabase Auth.",
+      "To remove an owner later, remove that owner from Supabase Authentication."
     ]
   }
 ];
