@@ -13,14 +13,12 @@ export async function GET(req: Request) {
   const supabase = getSupabaseAdmin();
 
   if (supabase) {
-    const [roomsRes, activeOccupancyRes, pendingRes, revenueRes, recentBillsRes] = await Promise.all([
+    const [roomsRes, occupancyRes, pendingRes, revenueRes, recentBillsRes] = await Promise.all([
       supabase.from("rooms").select("id", { count: "exact", head: true }).eq("owner_id", session.owner.owner_id),
       supabase
         .from("occupancy_logs")
-        .select("tenant_id", { count: "exact", head: false })
-        .eq("owner_id", session.owner.owner_id)
-        .lte("check_in", today)
-        .or(`check_out.is.null,check_out.gte.${today}`),
+        .select("tenant_id, check_in, check_out")
+        .eq("owner_id", session.owner.owner_id),
       supabase.from("bill_splits").select("id", { count: "exact", head: true }).eq("owner_id", session.owner.owner_id).neq("status", "paid"),
       supabase.from("payments").select("paid_amount").eq("owner_id", session.owner.owner_id).gte("payment_date", monthStart),
       supabase
@@ -31,11 +29,17 @@ export async function GET(req: Request) {
         .limit(5)
     ]);
 
+    const activeTenants = new Set(
+      (occupancyRes.data || [])
+        .filter((row: any) => row.check_in <= today && (!row.check_out || row.check_out >= today))
+        .map((row: any) => row.tenant_id)
+    ).size;
+
     const monthlyRevenue = (revenueRes.data || []).reduce((sum: number, row: any) => sum + Number(row.paid_amount || 0), 0);
 
     return NextResponse.json({
       total_rooms: roomsRes.count || 0,
-      active_tenants: new Set((activeOccupancyRes.data || []).map((row: any) => row.tenant_id)).size,
+      active_tenants: activeTenants,
       pending_payments: pendingRes.count || 0,
       monthly_revenue: Number(monthlyRevenue.toFixed(2)),
       recent_bills: recentBillsRes.data || []
