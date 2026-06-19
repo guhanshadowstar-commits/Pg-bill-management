@@ -13,8 +13,9 @@ export async function GET(req: Request) {
   const supabase = getSupabaseAdmin();
 
   if (supabase) {
-    const [roomsRes, occupancyRes, pendingRes, revenueRes, recentBillsRes] = await Promise.all([
+    const [roomsRes, tenantsRes, occupancyRes, pendingRes, revenueRes, recentBillsRes] = await Promise.all([
       supabase.from("rooms").select("id", { count: "exact", head: true }).eq("owner_id", session.owner.owner_id),
+      supabase.from("tenants").select("id", { count: "exact", head: true }).eq("owner_id", session.owner.owner_id),
       supabase
         .from("occupancy_logs")
         .select("tenant_id, check_in, check_out")
@@ -29,11 +30,13 @@ export async function GET(req: Request) {
         .limit(5)
     ]);
 
-    const activeTenants = new Set(
-      (occupancyRes.data || [])
+    const occupancyRows = occupancyRes.data || [];
+    const activeOccupancyTenants = new Set(
+      occupancyRows
         .filter((row: any) => row.check_in <= today && (!row.check_out || row.check_out >= today))
         .map((row: any) => row.tenant_id)
     ).size;
+    const activeTenants = occupancyRows.length > 0 ? activeOccupancyTenants : tenantsRes.count || 0;
 
     const monthlyRevenue = (revenueRes.data || []).reduce((sum: number, row: any) => sum + Number(row.paid_amount || 0), 0);
 
@@ -47,6 +50,13 @@ export async function GET(req: Request) {
   }
 
   const db = await readDb();
+  const ownerTenants = db.tenants.filter((tenant) => belongsToOwner(tenant, session.owner.owner_id));
+  const ownerOccupancyRows = db.occupancy_logs.filter((row) => belongsToOwner(row, session.owner.owner_id));
+  const activeOccupancyTenants = new Set(
+    ownerOccupancyRows
+      .filter((row) => row.check_in <= today && (!row.check_out || row.check_out >= today))
+      .map((row) => row.tenant_id)
+  ).size;
   const monthlyRevenue = db.payments
     .filter((p) => p.payment_date >= monthStart && belongsToOwner(p, session.owner.owner_id))
     .reduce((sum, p) => sum + Number(p.paid_amount), 0);
@@ -64,11 +74,7 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     total_rooms: db.rooms.filter((room) => belongsToOwner(room, session.owner.owner_id)).length,
-    active_tenants: new Set(
-      db.occupancy_logs
-        .filter((row) => belongsToOwner(row, session.owner.owner_id) && row.check_in <= today && (!row.check_out || row.check_out >= today))
-        .map((row) => row.tenant_id)
-    ).size,
+    active_tenants: ownerOccupancyRows.length > 0 ? activeOccupancyTenants : ownerTenants.length,
     pending_payments: db.bill_splits.filter((s) => belongsToOwner(s, session.owner.owner_id) && s.status !== "paid").length,
     monthly_revenue: Number(monthlyRevenue.toFixed(2)),
     recent_bills: recentBills
