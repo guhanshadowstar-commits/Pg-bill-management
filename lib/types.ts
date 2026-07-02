@@ -113,6 +113,42 @@ export type Payment = {
   created_at: string;
 };
 
+export type OwnerSettings = {
+  id: string;
+  owner_id: string;
+  vacancy_notice_days: number;
+  guest_policy_text: string | null;
+  apply_slug: string | null;
+  created_at: string;
+};
+
+export type TenantApplication = {
+  id: string;
+  owner_id: string;
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+  desired_room_id: string | null;
+  desired_check_in: string | null;
+  id_proof: string | null;
+  notes: string | null;
+  status: "pending" | "approved" | "rejected";
+  created_at: string;
+};
+
+export type VacancyRequest = {
+  id: string;
+  owner_id: string;
+  tenant_id: string | null;
+  occupancy_log_id: string | null;
+  requested_vacate_date: string;
+  notice_given_date: string;
+  notice_days_required: number;
+  advance_refund_eligible: boolean;
+  status: "pending" | "approved" | "completed" | "cancelled";
+  created_at: string;
+};
+
 export type DBShape = {
   owner_accounts: OwnerAccount[];
   rooms: Room[];

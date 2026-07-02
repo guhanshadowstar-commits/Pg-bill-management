@@ -18,7 +18,10 @@ const nav = [
   { href: "/tenants", label: "Tenants" },
   { href: "/bills", label: "Bills" },
   { href: "/rent", label: "Rent" },
+  { href: "/applications", label: "Applications" },
+  { href: "/vacancy", label: "Vacancy" },
   { href: "/history", label: "History" },
+  { href: "/settings", label: "Settings" },
   { href: "/ai", label: "AI Help" },
   { href: "/manual", label: "Manual" }
 ] as const satisfies ReadonlyArray<{ href: Route; label: string }>;

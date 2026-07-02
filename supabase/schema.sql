@@ -155,3 +155,47 @@ create table if not exists public.rent_payments (
 create index if not exists idx_rent_charges_owner_room_month on public.rent_charges(owner_id, room_id, charge_month);
 create index if not exists idx_rent_payments_owner_charge on public.rent_payments(owner_id, rent_charge_id);
 create index if not exists idx_rent_payments_owner_tenant on public.rent_payments(owner_id, tenant_id);
+
+-- ===========================================================================
+-- Owner settings, tenant applications, and vacancy requests (additive migration)
+-- ===========================================================================
+
+create table if not exists public.owner_settings (
+  id uuid primary key default gen_random_uuid(),
+  owner_id text not null unique default 'owner',
+  vacancy_notice_days int not null default 30,
+  guest_policy_text text,
+  apply_slug text unique,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.tenant_applications (
+  id uuid primary key default gen_random_uuid(),
+  owner_id text not null default 'owner',
+  full_name text not null,
+  phone text,
+  email text,
+  desired_room_id uuid references public.rooms(id) on delete set null,
+  desired_check_in date,
+  id_proof text,
+  notes text,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_tenant_applications_owner_status on public.tenant_applications(owner_id, status);
+
+create table if not exists public.vacancy_requests (
+  id uuid primary key default gen_random_uuid(),
+  owner_id text not null default 'owner',
+  tenant_id uuid references public.tenants(id) on delete cascade,
+  occupancy_log_id uuid references public.occupancy_logs(id) on delete cascade,
+  requested_vacate_date date not null,
+  notice_given_date date not null default current_date,
+  notice_days_required int not null,
+  advance_refund_eligible boolean not null,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'completed', 'cancelled')),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_vacancy_requests_owner_status on public.vacancy_requests(owner_id, status);

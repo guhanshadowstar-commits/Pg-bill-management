@@ -8,6 +8,10 @@ export async function proxy(req: NextRequest) {
 
   if (
     publicPaths.has(pathname) ||
+    pathname.startsWith("/apply/") ||
+    // Public tenant application submissions + slug-scoped room list.
+    // Owner-only listing on this path is still enforced by requireOwner inside the route.
+    pathname === "/api/applications" ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.match(/\.(svg|png|jpg|jpeg|gif|webp|ico|css|js)$/)
