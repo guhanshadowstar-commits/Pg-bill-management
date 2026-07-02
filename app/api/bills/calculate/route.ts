@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { calculateBillSplit, calculateSegmentedBill } from "@/lib/billing";
-import { readDb } from "@/lib/db";
-import { belongsToOwner, requireOwner } from "@/lib/owner-scope";
+import { calculateSegmentedBill } from "@/lib/billing";
+import { requireOwner } from "@/lib/owner-scope";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 export async function POST(req: Request) {
@@ -18,8 +17,9 @@ export async function POST(req: Request) {
   }
 
   const supabase = getSupabaseAdmin();
+  if (!supabase) return NextResponse.json({ error: "Supabase is not configured" }, { status: 500 });
 
-  if (supabase) {
+  {
     const { data: room, error: roomError } = await supabase
       .from("rooms")
       .select("id, room_number")
@@ -84,20 +84,4 @@ export async function POST(req: Request) {
       }))
     });
   }
-
-  const db = await readDb();
-  const room = db.rooms.find((r) => r.room_number === roomNumber && belongsToOwner(r, session.owner.owner_id));
-  if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
-
-  const logs = db.occupancy_logs
-    .filter((o) => o.room_id === room.id && belongsToOwner(o, session.owner.owner_id))
-    .map((o) => ({
-      tenantId: o.tenant_id,
-      tenantName: db.tenants.find((t) => t.id === o.tenant_id && belongsToOwner(t, session.owner.owner_id))?.full_name || "Unknown",
-      checkIn: o.check_in,
-      checkOut: o.check_out
-    }));
-
-  const result = calculateBillSplit({ totalBill, roomNumber, month, logs });
-  return NextResponse.json(result);
 }

@@ -17,11 +17,40 @@ type DashboardResponse = {
   }[];
 };
 
+type RemindersResponse = {
+  unpaidEb: { id: string; tenant_name: string; room_number: string; bill_month: string | null; amount_due: number }[];
+  unpaidRent: { id: string; tenant_name: string; room_number: string; charge_month: string | null; amount_due: number }[];
+  licensesDueSoon: { id: string; license_name: string; expiry_date: string; days_left: number }[];
+  pendingGuests: { id: string; guest_name: string; tenant_name: string; start_date: string; end_date: string }[];
+};
+
+function ReminderCard({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
+  return (
+    <Card>
+      <div className="flex items-center justify-between">
+        <h3 className="text-base font-semibold">{title}</h3>
+        <span
+          className={
+            count > 0
+              ? "rounded-full bg-amber-500/10 px-2 py-1 text-xs text-amber-600 dark:text-amber-300"
+              : "rounded-full bg-emerald-500/10 px-2 py-1 text-xs text-emerald-600 dark:text-emerald-300"
+          }
+        >
+          {count}
+        </span>
+      </div>
+      <div className="mt-2 space-y-1 text-sm text-mist">{children}</div>
+    </Card>
+  );
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardResponse | null>(null);
+  const [reminders, setReminders] = useState<RemindersResponse | null>(null);
 
   useEffect(() => {
     fetch("/api/dashboard").then((r) => r.json()).then(setData).catch(() => setData(null));
+    fetch("/api/reminders").then((r) => r.json()).then((d) => setReminders(d?.unpaidEb ? d : null)).catch(() => setReminders(null));
   }, []);
 
   const monthLabel = useMemo(() => new Date().toLocaleString("en-IN", { month: "long", year: "numeric" }), []);
@@ -33,6 +62,33 @@ export default function DashboardPage() {
         <StatCard label="Active Tenants" value={String(data?.active_tenants ?? "--")} />
         <StatCard label={`Revenue (${monthLabel})`} value={data ? `₹${data.monthly_revenue}` : "--"} />
         <StatCard label="Pending Payments" value={String(data?.pending_payments ?? "--")} />
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <ReminderCard title="Unpaid EB" count={reminders?.unpaidEb.length ?? 0}>
+          {(reminders?.unpaidEb || []).slice(0, 5).map((r) => (
+            <p key={r.id}>{r.tenant_name} · Room {r.room_number} · ₹{r.amount_due}</p>
+          ))}
+          {!reminders?.unpaidEb.length && <p>All EB splits are paid.</p>}
+        </ReminderCard>
+        <ReminderCard title="Unpaid Rent" count={reminders?.unpaidRent.length ?? 0}>
+          {(reminders?.unpaidRent || []).slice(0, 5).map((r) => (
+            <p key={r.id}>{r.tenant_name} · Room {r.room_number} · ₹{r.amount_due}</p>
+          ))}
+          {!reminders?.unpaidRent.length && <p>All rent is collected.</p>}
+        </ReminderCard>
+        <ReminderCard title="Licenses Due" count={reminders?.licensesDueSoon.length ?? 0}>
+          {(reminders?.licensesDueSoon || []).slice(0, 5).map((l) => (
+            <p key={l.id}>{l.license_name} · {l.days_left < 0 ? "expired" : `${l.days_left}d left`}</p>
+          ))}
+          {!reminders?.licensesDueSoon.length && <p>No renewals due in 60 days.</p>}
+        </ReminderCard>
+        <ReminderCard title="Guest Requests" count={reminders?.pendingGuests.length ?? 0}>
+          {(reminders?.pendingGuests || []).slice(0, 5).map((g) => (
+            <p key={g.id}>{g.guest_name} → {g.tenant_name}</p>
+          ))}
+          {!reminders?.pendingGuests.length && <p>No pending guest requests.</p>}
+        </ReminderCard>
       </section>
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2">

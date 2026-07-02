@@ -105,6 +105,21 @@ export default function BillsPage() {
     await loadBills();
   }
 
+  async function uploadProof(splitId: string, file: File) {
+    const data = new FormData();
+    data.append("file", file);
+    data.append("payment_id", splitId);
+    data.append("payment_kind", "eb");
+    const res = await fetch("/api/payments/proof", { method: "POST", body: data }).then((r) => r.json());
+    if (res.error) alert(res.error);
+  }
+
+  async function viewProof(splitId: string) {
+    const res = await fetch(`/api/payments/proof?payment_id=${splitId}&kind=eb`).then((r) => r.json());
+    if (res.url) window.open(res.url, "_blank");
+    else alert(res.error || "No proof found");
+  }
+
   return (
     <main className="space-y-4">
       <section className="grid gap-4 md:grid-cols-2">
@@ -208,11 +223,30 @@ export default function BillsPage() {
                         <td>₹{s.amount}</td>
                         <td>{s.status}</td>
                         <td>
-                          {s.status !== "paid" && (
-                            <button className="rounded-lg border border-black/10 px-2 py-1 text-xs dark:border-white/20" onClick={() => markPaid(s.id, s.amount)}>
-                              Mark Paid
+                          <div className="flex items-center gap-2">
+                            {s.status !== "paid" && (
+                              <button className="rounded-lg border border-black/10 px-2 py-1 text-xs dark:border-white/20" onClick={() => markPaid(s.id, s.amount)}>
+                                Mark Paid
+                              </button>
+                            )}
+                            <label className="cursor-pointer rounded-lg border border-black/10 px-2 py-1 text-xs dark:border-white/20">
+                              Upload proof
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                className="hidden"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  await uploadProof(s.id, file);
+                                  await loadBills();
+                                }}
+                              />
+                            </label>
+                            <button className="rounded-lg border border-black/10 px-2 py-1 text-xs dark:border-white/20" onClick={() => viewProof(s.id)}>
+                              View proof
                             </button>
-                          )}
+                          </div>
                         </td>
                       </tr>
                     ))}

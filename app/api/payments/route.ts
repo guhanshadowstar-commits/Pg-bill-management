@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { readDb, writeDb } from "@/lib/db";
-import { belongsToOwner, requireOwner } from "@/lib/owner-scope";
+import { requireOwner } from "@/lib/owner-scope";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
-import { uid } from "@/lib/utils";
 
 export async function POST(req: Request) {
   const session = await requireOwner(req);
@@ -19,8 +17,9 @@ export async function POST(req: Request) {
   }
 
   const supabase = getSupabaseAdmin();
+  if (!supabase) return NextResponse.json({ error: "Supabase is not configured" }, { status: 500 });
 
-  if (supabase) {
+  {
     const { data: split, error: splitError } = await supabase
       .from("bill_splits")
       .select("id, amount, tenant_id")
@@ -64,31 +63,4 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, status, totalPaid, dueAmount: Number(split.amount) });
   }
-
-  const db = await readDb();
-  const split = db.bill_splits.find((s) => s.id === billSplitId && belongsToOwner(s, session.owner.owner_id));
-  if (!split) return NextResponse.json({ error: "Bill split not found" }, { status: 404 });
-
-  db.payments.push({
-    id: uid("pay"),
-    owner_id: session.owner.owner_id,
-    bill_split_id: billSplitId,
-    paid_amount: paidAmount,
-    payment_date: new Date().toISOString().slice(0, 10),
-    status: "pending",
-    method,
-    txn_ref: txnRef,
-    created_at: new Date().toISOString()
-  });
-
-  const totalPaid = db.payments
-    .filter((p) => p.bill_split_id === billSplitId && belongsToOwner(p, session.owner.owner_id))
-    .reduce((sum, p) => sum + Number(p.paid_amount || 0), 0);
-
-  split.status = totalPaid >= split.amount ? "paid" : totalPaid > 0 ? "partial" : "pending";
-  const tenant = db.tenants.find((t) => t.id === split.tenant_id && belongsToOwner(t, session.owner.owner_id));
-  if (tenant) tenant.payment_status = split.status;
-
-  await writeDb(db);
-  return NextResponse.json({ ok: true, status: split.status, totalPaid, dueAmount: split.amount });
 }

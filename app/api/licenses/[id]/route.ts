@@ -2,43 +2,43 @@ import { NextResponse } from "next/server";
 import { requireOwner } from "@/lib/owner-scope";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
-export async function GET(req: Request) {
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireOwner(req);
   if (session.error) return session.error;
 
   const supabase = getSupabaseAdmin();
   if (!supabase) return NextResponse.json({ error: "Supabase is not configured" }, { status: 500 });
 
-  const { data, error } = await supabase
-    .from("tenants")
-    .select("*")
-    .eq("owner_id", session.owner.owner_id)
-    .order("created_at", { ascending: false });
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json(data || []);
-}
-
-export async function POST(req: Request) {
-  const session = await requireOwner(req);
-  if (session.error) return session.error;
-
+  const { id } = await params;
   const body = await req.json();
-  const fullName = String(body.full_name || "").trim();
-
-  if (!fullName) {
-    return NextResponse.json({ error: "full_name is required" }, { status: 400 });
-  }
-
-  const phone = body.phone ? String(body.phone) : null;
-  const supabase = getSupabaseAdmin();
-  if (!supabase) return NextResponse.json({ error: "Supabase is not configured" }, { status: 500 });
+  const { owner_id: _ownerId, id: _bodyId, created_at: _createdAt, ...safeBody } = body;
 
   const { data, error } = await supabase
-    .from("tenants")
-    .insert({ owner_id: session.owner.owner_id, full_name: fullName, phone, payment_status: "pending" })
+    .from("licenses")
+    .update(safeBody)
+    .eq("id", id)
+    .eq("owner_id", session.owner.owner_id)
     .select("*")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json(data, { status: 201 });
+  return NextResponse.json(data);
+}
+
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await requireOwner(req);
+  if (session.error) return session.error;
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return NextResponse.json({ error: "Supabase is not configured" }, { status: 500 });
+
+  const { id } = await params;
+  const { error } = await supabase
+    .from("licenses")
+    .delete()
+    .eq("id", id)
+    .eq("owner_id", session.owner.owner_id);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  return NextResponse.json({ ok: true });
 }

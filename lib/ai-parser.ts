@@ -1,5 +1,3 @@
-import OpenAI from "openai";
-
 function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
@@ -56,49 +54,41 @@ function localFallback(text: string, month: string) {
 }
 
 export async function parseOccupancyText(input: { text: string; month: string }) {
-  if (!process.env.OPENAI_API_KEY) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
     return localFallback(input.text, input.month);
   }
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const response = await openai.responses.create({
-    model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
-    input: [
-      {
-        role: "system",
-        content:
-          "Extract tenant occupancy into strict JSON. Output only: { tenant_ranges: [{tenant,start_date,end_date}] }. Dates must be YYYY-MM-DD."
-      },
-      { role: "user", content: `Month: ${input.month}\nText: ${input.text}` }
-    ],
-    text: {
-      format: {
-        type: "json_schema",
-        name: "tenant_ranges",
-        strict: true,
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            tenant_ranges: {
-              type: "array",
-              items: {
-                type: "object",
-                additionalProperties: false,
-                properties: {
-                  tenant: { type: "string" },
-                  start_date: { type: "string" },
-                  end_date: { type: "string" }
-                },
-                required: ["tenant", "start_date", "end_date"]
-              }
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [
+            {
+              text: "Extract tenant occupancy into strict JSON. Output only: { tenant_ranges: [{tenant,start_date,end_date}] }. Dates must be YYYY-MM-DD."
             }
-          },
-          required: ["tenant_ranges"]
-        }
-      }
+          ]
+        },
+        contents: [{ role: "user", parts: [{ text: `Month: ${input.month}\nText: ${input.text}` }] }],
+        generationConfig: { responseMimeType: "application/json" }
+      })
     }
-  });
+  );
 
-  return JSON.parse(response.output_text);
+  if (!response.ok) {
+    return localFallback(input.text, input.month);
+  }
+
+  const payload = await response.json();
+  const text = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) return localFallback(input.text, input.month);
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return localFallback(input.text, input.month);
+  }
 }

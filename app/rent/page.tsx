@@ -15,8 +15,24 @@ type RentPayment = {
   paid_amount: number;
   status: string;
   paid_at: string | null;
+  proof_url?: string | null;
   tenants: { full_name: string };
 };
+
+async function uploadProof(paymentId: string, kind: "eb" | "rent", file: File): Promise<string | null> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("payment_id", paymentId);
+  form.append("payment_kind", kind);
+  const data = await fetch("/api/payments/proof", { method: "POST", body: form }).then((r) => r.json());
+  return data.error || null;
+}
+
+async function viewProof(paymentId: string, kind: "eb" | "rent") {
+  const data = await fetch(`/api/payments/proof?payment_id=${paymentId}&kind=${kind}`).then((r) => r.json());
+  if (data.url) window.open(data.url, "_blank");
+  else alert(data.error || "No proof found");
+}
 
 type RentCharge = {
   id: string;
@@ -155,14 +171,39 @@ export default function RentPage() {
                           </span>
                         </td>
                         <td>
-                          {payment.status !== "paid" && (
-                            <button
-                              className="rounded-lg border border-black/10 px-2 py-1 text-xs dark:border-white/20"
-                              onClick={() => markPaid(payment, charge.per_tenant_amount)}
-                            >
-                              Mark Paid
-                            </button>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {payment.status !== "paid" && (
+                              <button
+                                className="rounded-lg border border-black/10 px-2 py-1 text-xs dark:border-white/20"
+                                onClick={() => markPaid(payment, charge.per_tenant_amount)}
+                              >
+                                Mark Paid
+                              </button>
+                            )}
+                            <label className="cursor-pointer rounded-lg border border-black/10 px-2 py-1 text-xs dark:border-white/20">
+                              Upload proof
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                className="hidden"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  const err = await uploadProof(payment.id, "rent", file);
+                                  if (err) alert(err);
+                                  await load();
+                                }}
+                              />
+                            </label>
+                            {payment.proof_url && (
+                              <button
+                                className="rounded-lg border border-black/10 px-2 py-1 text-xs dark:border-white/20"
+                                onClick={() => viewProof(payment.id, "rent")}
+                              >
+                                View proof
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}

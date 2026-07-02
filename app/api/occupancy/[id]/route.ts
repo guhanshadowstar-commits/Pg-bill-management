@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { readDb, writeDb } from "@/lib/db";
-import { belongsToOwner, requireOwner } from "@/lib/owner-scope";
+import { requireOwner } from "@/lib/owner-scope";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 function isDateOnly(value: string) {
@@ -25,8 +24,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   const supabase = getSupabaseAdmin();
+  if (!supabase) return NextResponse.json({ error: "Supabase is not configured" }, { status: 500 });
 
-  if (supabase) {
+  {
     const { data: existing, error: existingError } = await supabase
       .from("occupancy_logs")
       .select("id, room_id, bed_id, check_in")
@@ -74,17 +74,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     return NextResponse.json(data);
   }
-
-  const db = await readDb();
-  const row = db.occupancy_logs.find((o) => o.id === id && belongsToOwner(o, session.owner.owner_id));
-  if (!row) return NextResponse.json({ error: "Occupancy log not found" }, { status: 404 });
-  if (check_out && check_out < row.check_in) {
-    return NextResponse.json({ error: "check_out cannot be before check_in" }, { status: 400 });
-  }
-
-  row.check_out = check_out;
-  await writeDb(db);
-  return NextResponse.json(row);
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -102,15 +91,9 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   }
 
   const supabase = getSupabaseAdmin();
+  if (!supabase) return NextResponse.json({ error: "Supabase is not configured" }, { status: 500 });
 
-  if (supabase) {
-    const { error } = await supabase.from("occupancy_logs").delete().eq("id", id).eq("owner_id", session.owner.owner_id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ ok: true });
-  }
-
-  const db = await readDb();
-  db.occupancy_logs = db.occupancy_logs.filter((o) => o.id !== id || !belongsToOwner(o, session.owner.owner_id));
-  await writeDb(db);
+  const { error } = await supabase.from("occupancy_logs").delete().eq("id", id).eq("owner_id", session.owner.owner_id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true });
 }

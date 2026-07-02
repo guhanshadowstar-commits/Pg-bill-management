@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { readDb } from "@/lib/db";
-import { belongsToOwner, requireOwner } from "@/lib/owner-scope";
+import { requireOwner } from "@/lib/owner-scope";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 function isoDate(date: Date) {
@@ -23,53 +22,29 @@ export async function GET(req: Request) {
   const from = isoDate(fromDate);
 
   const supabase = getSupabaseAdmin();
+  if (!supabase) return NextResponse.json({ error: "Supabase is not configured" }, { status: 500 });
 
-  if (supabase) {
-    const { data, error } = await supabase
-      .from("occupancy_logs")
-      .select("id, room_id, tenant_id, check_in, check_out, created_at, rooms(room_number), tenants(full_name, phone)")
-      .eq("owner_id", session.owner.owner_id)
-      .lte("check_in", today)
-      .or(`check_out.is.null,check_out.gte.${from}`)
-      .order("check_in", { ascending: false });
+  const { data, error } = await supabase
+    .from("occupancy_logs")
+    .select("id, room_id, tenant_id, check_in, check_out, created_at, rooms(room_number), tenants(full_name, phone)")
+    .eq("owner_id", session.owner.owner_id)
+    .lte("check_in", today)
+    .or(`check_out.is.null,check_out.gte.${from}`)
+    .order("check_in", { ascending: false });
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-    const rows = (data || []).map((row: any) => ({
-      ...row,
-      days_stayed: daysInclusive(row.check_in, row.check_out)
-    }));
-
-    return NextResponse.json({
-      from,
-      to: today,
-      total_records: rows.length,
-      active_records: rows.filter((row: any) => !row.check_out).length,
-      checked_out_records: rows.filter((row: any) => row.check_out).length,
-      rows
-    });
-  }
-
-  const db = await readDb();
-  const rows = db.occupancy_logs
-    .filter((row) => belongsToOwner(row, session.owner.owner_id) && row.check_in <= today && (!row.check_out || row.check_out >= from))
-    .sort((a, b) => b.check_in.localeCompare(a.check_in))
-    .map((row) => ({
-      ...row,
-      days_stayed: daysInclusive(row.check_in, row.check_out),
-      rooms: { room_number: db.rooms.find((room) => room.id === row.room_id && belongsToOwner(room, session.owner.owner_id))?.room_number || "-" },
-      tenants: {
-        full_name: db.tenants.find((tenant) => tenant.id === row.tenant_id && belongsToOwner(tenant, session.owner.owner_id))?.full_name || "-",
-        phone: db.tenants.find((tenant) => tenant.id === row.tenant_id && belongsToOwner(tenant, session.owner.owner_id))?.phone || null
-      }
-    }));
+  const rows = (data || []).map((row: any) => ({
+    ...row,
+    days_stayed: daysInclusive(row.check_in, row.check_out)
+  }));
 
   return NextResponse.json({
     from,
     to: today,
     total_records: rows.length,
-    active_records: rows.filter((row) => !row.check_out).length,
-    checked_out_records: rows.filter((row) => row.check_out).length,
+    active_records: rows.filter((row: any) => !row.check_out).length,
+    checked_out_records: rows.filter((row: any) => row.check_out).length,
     rows
   });
 }

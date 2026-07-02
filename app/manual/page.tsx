@@ -234,6 +234,92 @@ const guideSections = [
       "Normal owner accounts are created from the app login screen and stored by Supabase Auth.",
       "To remove an owner later, remove that owner from Supabase Authentication."
     ]
+  },
+  {
+    title: "18. Beds & Meter Readings",
+    purpose: "Track each bed in a room and record the room meter reading at every check-in and check-out.",
+    steps: [
+      "Open Beds and add each room's beds (Bed 1, Bed 2, ...).",
+      "Each bed shows a status: vacant, occupied, reserved, or maintenance.",
+      "When assigning a tenant in Tenants, pick a vacant bed and enter the room meter reading at that moment.",
+      "When a tenant checks out, enter the meter reading again.",
+      "The EB bill is split by actual units used between readings, so readings are mandatory."
+    ],
+    notes: [
+      "If a reading is missing, bill generation is blocked until you add it — there is no silent fallback.",
+      "Set each room's monthly rent on the Beds page too."
+    ]
+  },
+  {
+    title: "19. Rent",
+    purpose: "Bill monthly rent separately from electricity.",
+    steps: [
+      "Open Rent.",
+      "Pick the room and month, then click Generate.",
+      "The room rent is split equally among that month's occupants.",
+      "Mark each tenant's rent payment as paid when collected."
+    ],
+    notes: [
+      "Rent is charged fully even if a tenant is temporarily away.",
+      "Rent stops only after an approved vacancy request is completed and the tenant checks out."
+    ]
+  },
+  {
+    title: "20. Tenant Applications",
+    purpose: "Let new tenants apply through a public link without needing a login.",
+    steps: [
+      "Open Applications and copy your shareable apply link.",
+      "Send the link to prospective tenants on WhatsApp or anywhere.",
+      "The tenant fills name, phone, preferred room, and desired check-in date.",
+      "Review incoming applications and click Approve or Reject.",
+      "Approving creates the tenant profile; then assign a bed with a meter reading in Tenants."
+    ],
+    notes: ["The public form only shows your room numbers — no other data is exposed."]
+  },
+  {
+    title: "21. Vacancy Notices",
+    purpose: "Handle move-out notices with your own notice-period rule.",
+    steps: [
+      "Set your notice period (e.g. 30 days) in Settings.",
+      "When a tenant gives notice, open Vacancy and create a request with the vacate date.",
+      "The app shows whether the notice meets your period — this decides advance refund eligibility.",
+      "Approve the request, and on the vacate day complete it and check the tenant out (with a meter reading)."
+    ],
+    notes: ["The notice period is snapshotted per request, so changing Settings later never rewrites old requests."]
+  },
+  {
+    title: "22. Guests",
+    purpose: "Track tenant guest requests under your own guest rules.",
+    steps: [
+      "Write your guest policy in Settings (e.g. inform 2 days before, charges apply).",
+      "Open Guests and add a request with the host tenant, guest name, and dates.",
+      "To approve, enter the charge amount for that stay and click Approve.",
+      "Reject requests that break your policy."
+    ],
+    notes: ["The charge is decided per request — there is no fixed guest rate."]
+  },
+  {
+    title: "23. Licenses",
+    purpose: "Never miss a PG license renewal.",
+    steps: [
+      "Open Licenses.",
+      "Add each license (food license, trade license, fire safety) with its expiry date.",
+      "Licenses expiring within 60 days are highlighted and appear on the Dashboard."
+    ],
+    notes: ["Delete an entry after renewing and add the new expiry date."]
+  },
+  {
+    title: "24. Payment Proofs & Reminders",
+    purpose: "Attach payment screenshots and see what needs attention at a glance.",
+    steps: [
+      "On Bills or Rent, click Upload proof next to a payment and pick the screenshot.",
+      "Click View proof anytime to see the uploaded image.",
+      "The Dashboard shows four reminder sections: Unpaid EB, Unpaid Rent, Licenses Due, and Guest Requests."
+    ],
+    notes: [
+      "Proofs are stored privately in Supabase Storage (bucket: payment-proofs).",
+      "For EB proofs, record the payment first, then upload the screenshot."
+    ]
   }
 ];
 

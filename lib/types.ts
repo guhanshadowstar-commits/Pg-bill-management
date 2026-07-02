@@ -76,6 +76,31 @@ export type RentPayment = {
   paid_amount: number;
   status: "pending" | "partial" | "paid";
   paid_at: string | null;
+  proof_url?: string | null;
+  proof_uploaded_by?: "owner" | "tenant" | null;
+  created_at: string;
+};
+
+export type GuestRequest = {
+  id: string;
+  owner_id: string;
+  tenant_id: string | null;
+  guest_name: string;
+  guest_phone: string | null;
+  start_date: string;
+  end_date: string;
+  status: "pending" | "approved" | "rejected";
+  charge_amount: number | null;
+  notes: string | null;
+  created_at: string;
+};
+
+export type License = {
+  id: string;
+  owner_id: string;
+  license_name: string;
+  expiry_date: string;
+  notes: string | null;
   created_at: string;
 };
 
@@ -110,6 +135,8 @@ export type Payment = {
   status: "pending" | "paid" | "partial";
   method: string;
   txn_ref: string | null;
+  proof_url?: string | null;
+  proof_uploaded_by?: "owner" | "tenant" | null;
   created_at: string;
 };
 
@@ -149,12 +176,3 @@ export type VacancyRequest = {
   created_at: string;
 };
 
-export type DBShape = {
-  owner_accounts: OwnerAccount[];
-  rooms: Room[];
-  tenants: Tenant[];
-  occupancy_logs: OccupancyLog[];
-  electricity_bills: ElectricityBill[];
-  bill_splits: BillSplit[];
-  payments: Payment[];
-};

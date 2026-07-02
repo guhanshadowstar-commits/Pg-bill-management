@@ -20,6 +20,8 @@ const nav = [
   { href: "/rent", label: "Rent" },
   { href: "/applications", label: "Applications" },
   { href: "/vacancy", label: "Vacancy" },
+  { href: "/guests", label: "Guests" },
+  { href: "/licenses", label: "Licenses" },
   { href: "/history", label: "History" },
   { href: "/settings", label: "Settings" },
   { href: "/ai", label: "AI Help" },

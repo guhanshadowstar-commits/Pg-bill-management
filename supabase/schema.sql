@@ -199,3 +199,43 @@ create table if not exists public.vacancy_requests (
 );
 
 create index if not exists idx_vacancy_requests_owner_status on public.vacancy_requests(owner_id, status);
+
+-- ===========================================================================
+-- Guest requests, licenses, and payment proofs (additive migration)
+-- ===========================================================================
+
+create table if not exists public.guest_requests (
+  id uuid primary key default gen_random_uuid(),
+  owner_id text not null default 'owner',
+  tenant_id uuid references public.tenants(id) on delete cascade,
+  guest_name text not null,
+  guest_phone text,
+  start_date date not null,
+  end_date date not null,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  charge_amount numeric(10,2),
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_guest_requests_owner_status on public.guest_requests(owner_id, status);
+
+create table if not exists public.licenses (
+  id uuid primary key default gen_random_uuid(),
+  owner_id text not null default 'owner',
+  license_name text not null,
+  expiry_date date not null,
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_licenses_owner_expiry on public.licenses(owner_id, expiry_date);
+
+alter table public.payments add column if not exists proof_url text;
+alter table public.payments add column if not exists proof_uploaded_by text check (proof_uploaded_by in ('owner', 'tenant'));
+alter table public.rent_payments add column if not exists proof_url text;
+alter table public.rent_payments add column if not exists proof_uploaded_by text check (proof_uploaded_by in ('owner', 'tenant'));
+
+-- NOTE: also create a PRIVATE Supabase Storage bucket named "payment-proofs"
+-- (Dashboard -> Storage -> New bucket -> name: payment-proofs, public: OFF).
+-- Payment proof images are uploaded there by the app.

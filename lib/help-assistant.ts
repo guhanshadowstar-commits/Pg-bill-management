@@ -1,5 +1,3 @@
-import OpenAI from "openai";
-
 const SYSTEM_PROMPT = `You are the AI help assistant inside a PG Electricity Bill Manager app.
 Answer only about using this app: rooms, tenants, check-in/check-out, history, electricity bill calculation, payments, Supabase setup, and common mistakes.
 Keep answers simple, practical, and short.
@@ -72,16 +70,24 @@ function localAnswer(question: string) {
 }
 
 export async function answerHelpQuestion(question: string) {
-  if (!process.env.OPENAI_API_KEY) return localAnswer(question);
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return localAnswer(question);
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const response = await openai.responses.create({
-    model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
-    input: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: question }
-    ]
-  });
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        contents: [{ role: "user", parts: [{ text: question }] }]
+      })
+    }
+  );
 
-  return response.output_text || localAnswer(question);
+  if (!response.ok) return localAnswer(question);
+
+  const payload = await response.json();
+  const text = payload?.candidates?.[0]?.content?.parts?.[0]?.text;
+  return typeof text === "string" && text.trim() ? text : localAnswer(question);
 }

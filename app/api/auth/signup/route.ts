@@ -6,9 +6,7 @@ import {
   OWNER_SESSION_COOKIE,
   SESSION_TTL_SECONDS
 } from "@/lib/owner-auth";
-import { readDb, writeDb } from "@/lib/db";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
-import { uid } from "@/lib/utils";
 
 function isValidUsername(username: string) {
   return /^[a-z0-9._-]{3,40}$/.test(username);
@@ -46,8 +44,9 @@ export async function POST(req: Request) {
 
   const passwordHash = await hashOwnerPassword(password);
   const supabase = getSupabaseAdmin();
+  if (!supabase) return NextResponse.json({ error: "Supabase is not configured" }, { status: 500 });
 
-  if (supabase) {
+  {
     const { data: existing, error: lookupError } = await supabase
       .from("owner_accounts")
       .select("id")
@@ -90,23 +89,6 @@ export async function POST(req: Request) {
 
     return createSignupResponse(username, authOwner.user.id);
   }
-
-  const db = await readDb();
-  if (db.owner_accounts.some((account) => account.username === username)) {
-    return NextResponse.json({ error: "This username is already taken." }, { status: 409 });
-  }
-
-  const owner = {
-    id: uid("owner"),
-    username,
-    email,
-    password_hash: passwordHash,
-    created_at: new Date().toISOString()
-  };
-
-  db.owner_accounts.push(owner);
-  await writeDb(db);
-  return createSignupResponse(owner.username, owner.id);
 }
 
 async function createSignupResponse(username: string, ownerId: string) {
