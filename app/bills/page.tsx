@@ -5,12 +5,23 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+type Segment = {
+  startDate: string;
+  endDate: string;
+  units: number;
+  cost: number;
+  tenantIds: string[];
+};
+
+type Split = { tenantId: string; tenantName: string; amount: number };
+
 type CalcResult = {
   roomNumber: string;
+  month: string;
   totalBill: number;
-  totalPersonDays: number;
-  perPersonDayCost: number;
-  splits: { tenantId: string; tenantName: string; daysStayed: number; amount: number }[];
+  segments: Segment[];
+  tenantTotals: Record<string, number>;
+  splits: Split[];
 };
 
 type Bill = {
@@ -21,11 +32,14 @@ type Bill = {
   bill_splits: { id: string; days_stayed: number; amount: number; status: string; tenants: { full_name: string } }[];
 };
 
+type BillError = { error: string };
+
 export default function BillsPage() {
   const currentMonth = new Date().toISOString().slice(0, 7);
   const [form, setForm] = useState({ roomNumber: "", month: `${currentMonth}-01`, totalBill: "" });
   const [aiText, setAiText] = useState("");
   const [calc, setCalc] = useState<CalcResult | null>(null);
+  const [calcError, setCalcError] = useState<string>("");
   const [bills, setBills] = useState<Bill[]>([]);
   const [aiResult, setAiResult] = useState<string>("");
   const canSubmitBill = form.roomNumber.trim().length > 0 && Number(form.totalBill) > 0;
@@ -40,20 +54,34 @@ export default function BillsPage() {
   }, []);
 
   async function calculate() {
-    const data = await fetch("/api/bills/calculate", {
+    const data: CalcResult | BillError = await fetch("/api/bills/calculate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...form, totalBill: Number(form.totalBill) })
     }).then((r) => r.json());
+
+    if ("error" in data) {
+      setCalcError(data.error);
+      setCalc(null);
+      return;
+    }
+    setCalcError("");
     setCalc(data);
   }
 
   async function saveBill() {
-    const data = await fetch("/api/bills", {
+    const data: (CalcResult & { billId: string }) | BillError = await fetch("/api/bills", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...form, totalBill: Number(form.totalBill) })
     }).then((r) => r.json());
+
+    if ("error" in data) {
+      setCalcError(data.error);
+      setCalc(null);
+      return;
+    }
+    setCalcError("");
     setCalc(data);
     await loadBills();
   }
@@ -108,21 +136,49 @@ export default function BillsPage() {
         </Card>
       </section>
 
+      {calcError && (
+        <Card className="border-amber-500/30">
+          <h3 className="text-lg font-semibold text-amber-600 dark:text-amber-300">Cannot calculate bill</h3>
+          <p className="mt-1 text-sm text-mist">{calcError}</p>
+          <p className="mt-2 text-xs text-mist">Add the missing meter reading on the Beds/Tenants flow, then try again.</p>
+        </Card>
+      )}
+
       {calc && (
         <Card>
           <h3 className="text-lg font-semibold">Calculation Result</h3>
-          <p className="text-sm text-mist">Total Person-Days: {calc.totalPersonDays} | Per Day: ₹{calc.perPersonDayCost}</p>
-          <div className="mt-3 overflow-x-auto">
+          <p className="text-sm text-mist">Room {calc.roomNumber} | {calc.month.slice(0, 7)} | Total ₹{calc.totalBill}</p>
+
+          <div className="mt-3 space-y-3">
+            {calc.segments.map((segment, idx) => {
+              const tenantNames = segment.tenantIds.map(
+                (id) => calc.splits.find((s) => s.tenantId === id)?.tenantName || "Unknown"
+              );
+              return (
+                <div key={`${segment.startDate}-${segment.endDate}-${idx}`} className="rounded-xl border border-black/10 p-3 dark:border-white/15">
+                  <p className="text-sm font-semibold">
+                    {segment.startDate} to {segment.endDate} | {segment.units} units | ₹{segment.cost}
+                  </p>
+                  <p className="mt-1 text-xs text-mist">
+                    Split between: {tenantNames.length ? tenantNames.join(", ") : "No occupants"}
+                  </p>
+                </div>
+              );
+            })}
+            {!calc.segments.length && <p className="text-sm text-mist">No segments available.</p>}
+          </div>
+
+          <div className="mt-4 overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-black/10 text-mist dark:border-white/10">
-                  <th className="py-2">Tenant</th><th>Days</th><th>Amount</th>
+                  <th className="py-2">Tenant</th><th>Total Amount</th>
                 </tr>
               </thead>
               <tbody>
                 {calc.splits.map((s) => (
                   <tr key={s.tenantId} className="border-b border-black/5 dark:border-white/5">
-                    <td className="py-2">{s.tenantName}</td><td>{s.daysStayed}</td><td>₹{s.amount}</td>
+                    <td className="py-2">{s.tenantName}</td><td>₹{s.amount}</td>
                   </tr>
                 ))}
               </tbody>

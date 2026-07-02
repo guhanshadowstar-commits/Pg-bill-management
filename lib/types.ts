@@ -12,7 +12,17 @@ export type Room = {
   room_number: string;
   sharing_type: number;
   meter_number: string | null;
+  monthly_rent: number | null;
   status: "active" | "inactive";
+  created_at: string;
+};
+
+export type Bed = {
+  id: string;
+  owner_id: string;
+  room_id: string;
+  bed_label: string;
+  status: "vacant" | "occupied" | "reserved" | "maintenance";
   created_at: string;
 };
 
@@ -30,8 +40,42 @@ export type OccupancyLog = {
   owner_id: string;
   room_id: string;
   tenant_id: string;
+  bed_id: string | null;
   check_in: string;
   check_out: string | null;
+  created_at: string;
+};
+
+export type RoomMeterReading = {
+  id: string;
+  owner_id: string;
+  room_id: string;
+  occupancy_log_id: string | null;
+  reading_value: number;
+  reading_type: "checkin" | "checkout" | "month_end";
+  reading_date: string;
+  created_at: string;
+};
+
+export type RentCharge = {
+  id: string;
+  owner_id: string;
+  room_id: string;
+  charge_month: string;
+  total_rent: number;
+  occupant_count: number;
+  per_tenant_amount: number;
+  created_at: string;
+};
+
+export type RentPayment = {
+  id: string;
+  owner_id: string;
+  rent_charge_id: string;
+  tenant_id: string;
+  paid_amount: number;
+  status: "pending" | "partial" | "paid";
+  paid_at: string | null;
   created_at: string;
 };
 

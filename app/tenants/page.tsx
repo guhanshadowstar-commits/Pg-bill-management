@@ -9,14 +9,16 @@ import { Select } from "@/components/ui/select";
 type Tenant = { id: string; full_name: string; phone: string | null; payment_status: string };
 type Room = { id: string; room_number: string };
 type Occupancy = { id: string; check_in: string; check_out: string | null; rooms: { room_number: string }; tenants: { full_name: string } };
+type Bed = { id: string; room_id: string; bed_label: string; status: "vacant" | "occupied" | "reserved" | "maintenance" };
 
 export default function TenantsPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [occupancy, setOccupancy] = useState<Occupancy[]>([]);
+  const [beds, setBeds] = useState<Bed[]>([]);
 
   const [tenantForm, setTenantForm] = useState({ full_name: "", phone: "" });
-  const [assign, setAssign] = useState({ room_id: "", tenant_id: "", check_in: "", check_out: "" });
+  const [assign, setAssign] = useState({ room_id: "", tenant_id: "", bed_id: "", check_in: "", check_out: "", meter_reading: "" });
 
   async function load() {
     const [t, r, o] = await Promise.all([
@@ -33,9 +35,25 @@ export default function TenantsPage() {
     if (t?.[0] && !assign.tenant_id) setAssign((p) => ({ ...p, tenant_id: t[0].id }));
   }
 
+  async function loadBedsForRoom(roomId: string) {
+    if (!roomId) {
+      setBeds([]);
+      return;
+    }
+    const data = await fetch(`/api/beds?room_id=${roomId}`).then((x) => x.json());
+    setBeds(Array.isArray(data) ? data : []);
+  }
+
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    loadBedsForRoom(assign.room_id);
+    setAssign((p) => ({ ...p, bed_id: "" }));
+  }, [assign.room_id]);
+
+  const vacantBeds = beds.filter((bed) => bed.status === "vacant");
 
   async function addTenant() {
     await fetch("/api/tenants", {
@@ -55,12 +73,14 @@ export default function TenantsPage() {
       body: JSON.stringify({
         room_id: assign.room_id,
         tenant_id: assign.tenant_id,
+        bed_id: assign.bed_id,
         check_in: assign.check_in,
-        check_out: assign.check_out || null
+        check_out: assign.check_out || null,
+        meter_reading: Number(assign.meter_reading)
       })
     });
 
-    setAssign((p) => ({ ...p, check_in: "", check_out: "" }));
+    setAssign((p) => ({ ...p, bed_id: "", check_in: "", check_out: "", meter_reading: "" }));
     await load();
   }
 
@@ -70,10 +90,21 @@ export default function TenantsPage() {
     if (checkOut === null) return;
 
     const cleaned = checkOut.trim();
+    let meterReading: number | undefined;
+    if (cleaned) {
+      const readingInput = window.prompt("Room meter reading at check-out");
+      if (readingInput === null) return;
+      meterReading = Number(readingInput.trim());
+      if (!Number.isFinite(meterReading)) {
+        window.alert("A valid meter reading is required to check out.");
+        return;
+      }
+    }
+
     await fetch(`/api/occupancy/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ check_out: cleaned || null })
+      body: JSON.stringify({ check_out: cleaned || null, ...(cleaned ? { meter_reading: meterReading } : {}) })
     });
     await load();
   }
@@ -91,7 +122,7 @@ export default function TenantsPage() {
 
       <Card>
         <h2 className="text-lg font-semibold">Assign Tenant</h2>
-        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-5">
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-6">
           <Select value={assign.room_id} onChange={(e) => setAssign((p) => ({ ...p, room_id: e.target.value }))}>
             {rooms.map((r) => (
               <option key={r.id} value={r.id}>Room {r.room_number}</option>
@@ -102,10 +133,29 @@ export default function TenantsPage() {
               <option key={t.id} value={t.id}>{t.full_name}</option>
             ))}
           </Select>
+          <Select value={assign.bed_id} onChange={(e) => setAssign((p) => ({ ...p, bed_id: e.target.value }))}>
+            <option value="">Select bed</option>
+            {vacantBeds.map((bed) => (
+              <option key={bed.id} value={bed.id}>{bed.bed_label}</option>
+            ))}
+          </Select>
           <Input type="date" value={assign.check_in} onChange={(e) => setAssign((p) => ({ ...p, check_in: e.target.value }))} />
-          <Input type="date" value={assign.check_out} onChange={(e) => setAssign((p) => ({ ...p, check_out: e.target.value }))} />
-          <Button onClick={saveOccupancy} disabled={!assign.room_id || !assign.tenant_id || !assign.check_in}>Save</Button>
+          <Input
+            type="number"
+            placeholder="Room meter reading at check-in"
+            value={assign.meter_reading}
+            onChange={(e) => setAssign((p) => ({ ...p, meter_reading: e.target.value }))}
+          />
+          <Button
+            onClick={saveOccupancy}
+            disabled={!assign.room_id || !assign.tenant_id || !assign.bed_id || !assign.check_in || !assign.meter_reading}
+          >
+            Save
+          </Button>
         </div>
+        {!vacantBeds.length && assign.room_id && (
+          <p className="mt-2 text-xs text-mist">No vacant beds in this room. Add or free up a bed first.</p>
+        )}
       </Card>
 
       <Card>

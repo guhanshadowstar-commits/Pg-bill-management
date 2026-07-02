@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { calculateBillSplit } from "@/lib/billing";
+import { calculateBillSplit, calculateSegmentedBill } from "@/lib/billing";
 import { readDb } from "@/lib/db";
 import { belongsToOwner, requireOwner } from "@/lib/owner-scope";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
@@ -29,23 +29,60 @@ export async function POST(req: Request) {
 
     if (roomError || !room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
 
-    const { data: logs, error: logError } = await supabase
-      .from("occupancy_logs")
-      .select("tenant_id, check_in, check_out, tenants(full_name)")
-      .eq("owner_id", session.owner.owner_id)
-      .eq("room_id", room.id);
+    const [{ data: logs, error: logError }, { data: readings, error: readingsError }] = await Promise.all([
+      supabase
+        .from("occupancy_logs")
+        .select("id, tenant_id, bed_id, check_in, check_out, tenants(full_name)")
+        .eq("owner_id", session.owner.owner_id)
+        .eq("room_id", room.id),
+      supabase
+        .from("room_meter_readings")
+        .select("reading_value, reading_type, reading_date, occupancy_log_id")
+        .eq("owner_id", session.owner.owner_id)
+        .eq("room_id", room.id)
+        .gte("reading_date", `${month}-01`)
+        .lte("reading_date", `${month}-31`)
+    ]);
 
     if (logError) return NextResponse.json({ error: logError.message }, { status: 400 });
+    if (readingsError) return NextResponse.json({ error: readingsError.message }, { status: 400 });
 
-    const parsed = (logs || []).map((l: any) => ({
-      tenantId: l.tenant_id,
-      tenantName: l.tenants?.full_name || "Unknown",
-      checkIn: l.check_in,
-      checkOut: l.check_out
+    const occupancyLogs = (logs || []).map((l: any) => ({
+      id: l.id,
+      tenant_id: l.tenant_id,
+      bed_id: l.bed_id,
+      check_in: l.check_in,
+      check_out: l.check_out
     }));
 
-    const result = calculateBillSplit({ totalBill, roomNumber, month, logs: parsed });
-    return NextResponse.json(result);
+    const tenantNames = new Map((logs || []).map((l: any) => [l.tenant_id, l.tenants?.full_name || "Unknown"]));
+
+    const segmented = calculateSegmentedBill({
+      roomId: room.id,
+      month,
+      totalBill,
+      readings: readings || [],
+      occupancyLogs
+    });
+
+    if (segmented.error) {
+      return NextResponse.json({ error: segmented.error }, { status: 400 });
+    }
+
+    const tenantEntries = Object.entries(segmented.tenantTotals);
+
+    return NextResponse.json({
+      totalBill,
+      roomNumber,
+      month,
+      segments: segmented.segments,
+      tenantTotals: segmented.tenantTotals,
+      splits: tenantEntries.map(([tenantId, amount]) => ({
+        tenantId,
+        tenantName: tenantNames.get(tenantId) || "Unknown",
+        amount
+      }))
+    });
   }
 
   const db = await readDb();

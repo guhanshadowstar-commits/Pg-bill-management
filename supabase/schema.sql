@@ -96,3 +96,62 @@ create index if not exists idx_electricity_bills_bill_month on public.electricit
 create index if not exists idx_bill_splits_bill_id on public.bill_splits(bill_id);
 create index if not exists idx_payments_bill_split_id on public.payments(bill_split_id);
 create index if not exists idx_owner_accounts_username on public.owner_accounts(username);
+
+-- ===========================================================================
+-- Beds, per-room meter readings, and rent billing (additive migration)
+-- ===========================================================================
+
+alter table public.rooms add column if not exists monthly_rent numeric(10,2);
+
+create table if not exists public.beds (
+  id uuid primary key default gen_random_uuid(),
+  owner_id text not null default 'owner',
+  room_id uuid references public.rooms(id) on delete cascade,
+  bed_label text not null,
+  status text not null default 'vacant' check (status in ('vacant', 'occupied', 'reserved', 'maintenance')),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_beds_owner_room on public.beds(owner_id, room_id);
+
+alter table public.occupancy_logs add column if not exists bed_id uuid references public.beds(id);
+
+create table if not exists public.room_meter_readings (
+  id uuid primary key default gen_random_uuid(),
+  owner_id text not null default 'owner',
+  room_id uuid references public.rooms(id) on delete cascade,
+  occupancy_log_id uuid references public.occupancy_logs(id) on delete set null,
+  reading_value numeric not null,
+  reading_type text not null check (reading_type in ('checkin', 'checkout', 'month_end')),
+  reading_date date not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_room_meter_readings_owner_room_date on public.room_meter_readings(owner_id, room_id, reading_date);
+
+create table if not exists public.rent_charges (
+  id uuid primary key default gen_random_uuid(),
+  owner_id text not null default 'owner',
+  room_id uuid references public.rooms(id) on delete cascade,
+  charge_month date not null,
+  total_rent numeric(10,2) not null,
+  occupant_count int not null,
+  per_tenant_amount numeric(10,2) not null,
+  created_at timestamptz not null default now(),
+  unique (owner_id, room_id, charge_month)
+);
+
+create table if not exists public.rent_payments (
+  id uuid primary key default gen_random_uuid(),
+  owner_id text not null default 'owner',
+  rent_charge_id uuid references public.rent_charges(id) on delete cascade,
+  tenant_id uuid references public.tenants(id) on delete cascade,
+  paid_amount numeric(10,2) not null default 0,
+  status text not null default 'pending' check (status in ('pending', 'partial', 'paid')),
+  paid_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_rent_charges_owner_room_month on public.rent_charges(owner_id, room_id, charge_month);
+create index if not exists idx_rent_payments_owner_charge on public.rent_payments(owner_id, rent_charge_id);
+create index if not exists idx_rent_payments_owner_tenant on public.rent_payments(owner_id, tenant_id);

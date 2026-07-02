@@ -41,12 +41,13 @@ export async function POST(req: Request) {
 
   const status: "active" | "inactive" = body.status === "inactive" ? "inactive" : "active";
   const meter_number = body.meter_number || null;
+  const monthly_rent = body.monthly_rent !== undefined && body.monthly_rent !== null ? Number(body.monthly_rent) : null;
 
   const supabase = getSupabaseAdmin();
   if (supabase) {
     const { data, error } = await supabase
       .from("rooms")
-      .insert({ owner_id: session.owner.owner_id, room_number: roomNumber, sharing_type: sharingType, meter_number, status })
+      .insert({ owner_id: session.owner.owner_id, room_number: roomNumber, sharing_type: sharingType, meter_number, monthly_rent, status })
       .select("*")
       .single();
 
@@ -65,6 +66,7 @@ export async function POST(req: Request) {
     room_number: roomNumber,
     sharing_type: sharingType,
     meter_number,
+    monthly_rent,
     status,
     created_at: new Date().toISOString()
   };

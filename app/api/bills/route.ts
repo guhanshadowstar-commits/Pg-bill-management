@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { calculateBillSplit } from "@/lib/billing";
+import { calculateBillSplit, calculateSegmentedBill } from "@/lib/billing";
 import { readDb, writeDb } from "@/lib/db";
 import { belongsToOwner, requireOwner } from "@/lib/owner-scope";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
@@ -65,22 +65,45 @@ export async function POST(req: Request) {
 
     if (roomError || !room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
 
-    const { data: logs, error: logError } = await supabase
-      .from("occupancy_logs")
-      .select("tenant_id, check_in, check_out, tenants(full_name)")
-      .eq("owner_id", session.owner.owner_id)
-      .eq("room_id", room.id);
+    const [{ data: logs, error: logError }, { data: readings, error: readingsError }] = await Promise.all([
+      supabase
+        .from("occupancy_logs")
+        .select("id, tenant_id, bed_id, check_in, check_out, tenants(full_name)")
+        .eq("owner_id", session.owner.owner_id)
+        .eq("room_id", room.id),
+      supabase
+        .from("room_meter_readings")
+        .select("reading_value, reading_type, reading_date, occupancy_log_id")
+        .eq("owner_id", session.owner.owner_id)
+        .eq("room_id", room.id)
+        .gte("reading_date", `${month}-01`)
+        .lte("reading_date", `${month}-31`)
+    ]);
 
     if (logError) return NextResponse.json({ error: logError.message }, { status: 400 });
+    if (readingsError) return NextResponse.json({ error: readingsError.message }, { status: 400 });
 
-    const parsed = (logs || []).map((l: any) => ({
-      tenantId: l.tenant_id,
-      tenantName: l.tenants?.full_name || "Unknown",
-      checkIn: l.check_in,
-      checkOut: l.check_out
+    const occupancyLogs = (logs || []).map((l: any) => ({
+      id: l.id,
+      tenant_id: l.tenant_id,
+      bed_id: l.bed_id,
+      check_in: l.check_in,
+      check_out: l.check_out
     }));
 
-    const calc = calculateBillSplit({ totalBill, roomNumber, month, logs: parsed });
+    const tenantNames = new Map((logs || []).map((l: any) => [l.tenant_id, l.tenants?.full_name || "Unknown"]));
+
+    const segmented = calculateSegmentedBill({
+      roomId: room.id,
+      month,
+      totalBill,
+      readings: readings || [],
+      occupancyLogs
+    });
+
+    if (segmented.error) {
+      return NextResponse.json({ error: segmented.error }, { status: 400 });
+    }
 
     const { data: bill, error: billError } = await supabase
       .from("electricity_bills")
@@ -90,8 +113,8 @@ export async function POST(req: Request) {
           room_id: room.id,
           bill_month: month,
           total_amount: totalBill,
-          total_person_days: calc.totalPersonDays,
-          per_person_day_cost: calc.perPersonDayCost
+          total_person_days: 0,
+          per_person_day_cost: 0
         },
         { onConflict: "room_id,bill_month" }
       )
@@ -107,13 +130,14 @@ export async function POST(req: Request) {
       .eq("owner_id", session.owner.owner_id);
     if (delError) return NextResponse.json({ error: delError.message }, { status: 400 });
 
-    if (calc.splits.length > 0) {
-      const payload = calc.splits.map((s) => ({
+    const tenantEntries = Object.entries(segmented.tenantTotals);
+    if (tenantEntries.length > 0) {
+      const payload = tenantEntries.map(([tenantId, amount]) => ({
         owner_id: session.owner.owner_id,
         bill_id: bill.id,
-        tenant_id: s.tenantId,
-        days_stayed: s.daysStayed,
-        amount: s.amount,
+        tenant_id: tenantId,
+        days_stayed: 0,
+        amount,
         status: "pending"
       }));
 
@@ -121,7 +145,20 @@ export async function POST(req: Request) {
       if (splitError) return NextResponse.json({ error: splitError.message }, { status: 400 });
     }
 
-    return NextResponse.json({ ...calc, billId: bill.id, saved: true });
+    return NextResponse.json({
+      billId: bill.id,
+      saved: true,
+      totalBill,
+      roomNumber,
+      month,
+      segments: segmented.segments,
+      tenantTotals: segmented.tenantTotals,
+      splits: tenantEntries.map(([tenantId, amount]) => ({
+        tenantId,
+        tenantName: tenantNames.get(tenantId) || "Unknown",
+        amount
+      }))
+    });
   }
 
   const db = await readDb();
